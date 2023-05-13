@@ -68,6 +68,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
+import { Role } from "@prisma/client";
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -109,7 +110,10 @@ export const publicProcedure = t.procedure;
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "you must be signed in to perform this action!",
+    });
   }
   return next({
     ctx: {
@@ -118,6 +122,26 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
     },
   });
 });
+
+const isAdminMiddleware = enforceUserIsAuthed.unstable_pipe(({ ctx, next }) => {
+  if (ctx.session.user.role !== "ADMIN")
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "you must be an admin to perform this action!",
+    });
+  return next();
+});
+
+const isTeacherMiddleware = enforceUserIsAuthed.unstable_pipe(
+  ({ ctx, next }) => {
+    if (ctx.session.user.role === "STUDENT")
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "you must be an admin to perform this action!",
+      });
+    return next();
+  }
+);
 
 /**
  * Protected (authenticated) procedure
@@ -128,3 +152,5 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  * @see https://trpc.io/docs/procedures
  */
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+export const adminProcedure = t.procedure.use(isAdminMiddleware);
+export const teacherProcedure = t.procedure.use(isTeacherMiddleware);

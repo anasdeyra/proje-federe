@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-    provider = "sqlite"
+    provider = "postgresql"
     // NOTE: When using postgresql, mysql or sqlserver, uncomment the @db.Text annotations in model Account below
     // Further reading:
     // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
@@ -14,11 +14,46 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Example {
+model Course {
     id        String   @id @default(cuid())
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    code      String   @unique
+    name      String
+    description String
+    startingDate DateTime @default(now())
+    durationInWeeks Int
+    admin    User     @relation(fields: [adminId], references: [id], name: "admin")
+    adminId   String
+    students  User[]  @relation("students")
+    courseTeacher  User  @relation(fields: [courseTeacherId], references: [id], name: "courseTeacher")
+    courseTeacherId  String
+    tpTeacher  User? @relation(fields: [tpTeacherId], references: [id], name: "tpTeacher")
+    tpTeacherId  String?
+    tdTeacher  User? @relation(fields: [tdTeacherId], references: [id], name: "tdTeacher")
+    tdTeacherId  String?
+    chapters  Chapter[]
 }
+
+model Chapter {
+    id        String   @id @default(cuid())
+    title      String
+    description String
+    course    Course   @relation(fields: [courseId], references: [id])
+    courseId  String
+    supports Support[]
+}
+
+model Support {
+    id        String   @id @default(cuid())
+    title      String
+    description String?
+    chapter    Chapter   @relation(fields: [chapterId], references: [id])
+    chapterId  String
+    fileType String
+    fileUrl String
+    isPublic Boolean @default(true)
+    publishedAt DateTime?
+}
+
 
 // Necessary for Next auth
 model Account {
@@ -55,6 +90,12 @@ model User {
     image         String?
     accounts      Account[]
     sessions      Session[]
+    role    Role @default(STUDENT)
+    courses Course[] @relation("students")
+    courseTeacher Course[] @relation("courseTeacher")
+    tpTeacher Course[] @relation("tpTeacher")
+    tdTeacher Course[] @relation("tdTeacher")
+    managedCourses Course[] @relation("admin")
 }
 
 model VerificationToken {
@@ -64,3 +105,10 @@ model VerificationToken {
 
     @@unique([identifier, token])
 }
+
+enum Role {
+    ADMIN
+    STUDENT
+    TEACHER
+}
+
